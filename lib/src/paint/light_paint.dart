@@ -5,26 +5,44 @@ import 'package:flutter/material.dart';
 class LightPaint extends CustomPainter {
   final double progress;
   final Offset positioned;
+  final Offset? tappablePositioned;
   final double sizeCircle;
+  final double? tappableSizeCircle;
   final Color colorShadow;
   final double opacityShadow;
   final BorderSide? borderSide;
+  final BorderSide? tappableBorderSide;
+  final double staticProgress;
 
-  LightPaint(
-    this.progress,
-    this.positioned,
-    this.sizeCircle, {
+  LightPaint({
+    required this.progress,
+    required this.staticProgress,
+    required this.positioned,
+    required this.tappablePositioned,
+    required this.sizeCircle,
+    required this.tappableSizeCircle,
     this.colorShadow = Colors.black,
     this.opacityShadow = 0.8,
     this.borderSide,
+    this.tappableBorderSide,
   }) : assert(opacityShadow >= 0 && opacityShadow <= 1);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (positioned == Offset.zero) return;
     var maxSize = max(size.width, size.height);
+    // print('progress = $progress');
 
-    double radius = maxSize * (1 - progress) + sizeCircle;
+    final haveTappable = tappableSizeCircle != null &&
+        tappablePositioned != null &&
+        tappableBorderSide != null &&
+        tappableBorderSide?.style != BorderStyle.none;
+    double radius;
+    if (haveTappable) {
+      radius = maxSize * (1 - staticProgress) + sizeCircle;
+    } else {
+      radius = maxSize * (1 - progress) + sizeCircle;
+    }
 
     // There is some weirdness here.  On mobile, using arcTo with `sweepAngle: 2 * pi`
     // gives the equivalent of `sweepAngle: 0`.  I couldn't find any documentation

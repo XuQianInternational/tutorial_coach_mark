@@ -46,9 +46,51 @@ TargetPosition? getTargetCurrent(
   }
 }
 
+TargetPosition? getTappableCurrent(
+  TargetFocus target, {
+  bool rootOverlay = false,
+}) {
+  if (target.tappableTarget != null) {
+    var key = target.tappableTarget!;
+
+    try {
+      final RenderBox renderBoxRed =
+          key.currentContext!.findRenderObject() as RenderBox;
+      final size = renderBoxRed.size;
+
+      BuildContext? context;
+      if (rootOverlay) {
+        context = key.currentContext!
+            .findRootAncestorStateOfType<OverlayState>()
+            ?.context;
+      } else {
+        context = key.currentContext!
+            .findAncestorStateOfType<NavigatorState>()
+            ?.context;
+      }
+      Offset offset;
+      if (context != null) {
+        offset = renderBoxRed.localToGlobal(
+          Offset.zero,
+          ancestor: context.findRenderObject(),
+        );
+      } else {
+        offset = renderBoxRed.localToGlobal(Offset.zero);
+      }
+
+      return TargetPosition(size, offset);
+    } catch (e) {
+      throw NotFoundTargetException();
+    }
+  }
+  return null;
+}
+
 abstract class TutorialCoachMarkController {
   void next();
+
   void previous();
+
   void skip();
 }
 

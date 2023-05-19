@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:tutorial_coach_mark/src/paint/light_paint.dart';
@@ -6,6 +7,9 @@ import 'package:tutorial_coach_mark/src/paint/light_paint_rect.dart';
 import 'package:tutorial_coach_mark/src/target/target_focus.dart';
 import 'package:tutorial_coach_mark/src/target/target_position.dart';
 import 'package:tutorial_coach_mark/src/util.dart';
+
+import '../paint/light_tappable_paint.dart';
+import '../paint/light_tappable_paint_rect.dart';
 
 class AnimatedFocusLight extends StatefulWidget {
   final List<TargetFocus> targets;
@@ -63,11 +67,14 @@ abstract class AnimatedFocusLightState extends State<AnimatedFocusLight>
 
   late TargetFocus _targetFocus;
   Offset _positioned = const Offset(0.0, 0.0);
-  TargetPosition? _targetPosition;
+  Offset? _tappablePositioned;
+  TargetPosition? _targetPosition, _tappablePosition;
 
   double _sizeCircle = 100;
+  double? _tappableSizeCircle;
   int _currentFocus = 0;
   double _progressAnimated = 0;
+  double _staticProgressAnimated = 0;
   bool _goNext = true;
 
   @override
@@ -124,9 +131,13 @@ abstract class AnimatedFocusLightState extends State<AnimatedFocusLight>
         widget.focusAnimationDuration ??
         defaultFocusAnimationDuration;
 
-    TargetPosition? targetPosition;
+    TargetPosition? targetPosition, tappablePosition;
     try {
       targetPosition = getTargetCurrent(
+        _targetFocus,
+        rootOverlay: widget.rootOverlay,
+      );
+      tappablePosition = getTappableCurrent(
         _targetFocus,
         rootOverlay: widget.rootOverlay,
       );
@@ -142,16 +153,37 @@ abstract class AnimatedFocusLightState extends State<AnimatedFocusLight>
 
     safeSetState(() {
       _targetPosition = targetPosition!;
+      _tappablePosition = tappablePosition;
 
       _positioned = Offset(
         targetPosition.offset.dx + (targetPosition.size.width / 2),
         targetPosition.offset.dy + (targetPosition.size.height / 2),
       );
+      if (tappablePosition == null) {
+        _tappablePositioned = null;
+      } else {
+        _tappablePositioned = Offset(
+          tappablePosition.offset.dx + (tappablePosition.size.width / 2),
+          tappablePosition.offset.dy + (tappablePosition.size.height / 2),
+        );
+      }
 
       if (targetPosition.size.height > targetPosition.size.width) {
         _sizeCircle = targetPosition.size.height * 0.6 + _getPaddingFocus();
+        if (tappablePosition != null) {
+          _tappableSizeCircle =
+              tappablePosition.size.height * 0.6 + _getTappablePaddingFocus();
+        } else {
+          _tappableSizeCircle = null;
+        }
       } else {
         _sizeCircle = targetPosition.size.width * 0.6 + _getPaddingFocus();
+        if (tappablePosition != null) {
+          _tappableSizeCircle =
+              tappablePosition.size.width * 0.6 + _getTappablePaddingFocus();
+        } else {
+          _tappableSizeCircle = null;
+        }
       }
     });
 
@@ -194,20 +226,48 @@ abstract class AnimatedFocusLightState extends State<AnimatedFocusLight>
       return LightPaintRect(
         colorShadow: target?.color ?? widget.colorShadow,
         progress: _progressAnimated,
+        staticProgress: _staticProgressAnimated,
         offset: _getPaddingFocus(),
         target: _targetPosition ?? TargetPosition(Size.zero, Offset.zero),
+        tappableTarget: _tappablePosition,
         radius: target?.radius ?? 0,
         borderSide: target?.borderSide,
         opacityShadow: widget.opacityShadow,
+        tappableRadius: target?.tappableRadius ?? 0,
+        tappableBorderSide: target?.tappableBorderSide,
       );
     } else {
       return LightPaint(
-        _progressAnimated,
-        _positioned,
-        _sizeCircle,
+        progress: _progressAnimated,
+        staticProgress: _staticProgressAnimated,
+        positioned: _positioned,
+        tappablePositioned: _tappablePositioned,
+        sizeCircle: _sizeCircle,
+        tappableSizeCircle: _tappableSizeCircle,
         colorShadow: target?.color ?? widget.colorShadow,
         borderSide: target?.borderSide,
         opacityShadow: widget.opacityShadow,
+        tappableBorderSide: target?.tappableBorderSide,
+      );
+    }
+  }
+
+  CustomPainter _getTappablePainter(TargetFocus? target) {
+    if (target?.tappableShape == ShapeLightFocus.RRect) {
+      return LightTappablePaintRect(
+        progress: _progressAnimated,
+        staticProgress: _staticProgressAnimated,
+        offset: _getTappablePaddingFocus(),
+        tappableTarget: _tappablePosition,
+        tappableRadius: target?.tappableRadius ?? 0,
+        tappableBorderSide: target?.tappableBorderSide,
+      );
+    } else {
+      return LightTappablePaint(
+        progress: _progressAnimated,
+        tappablePositioned: _tappablePositioned,
+        tappableSizeCircle: _tappableSizeCircle,
+        tappableBorderSide: target?.tappableBorderSide,
       );
     }
   }
@@ -216,25 +276,155 @@ abstract class AnimatedFocusLightState extends State<AnimatedFocusLight>
     return _targetFocus.paddingFocus ?? (widget.paddingFocus);
   }
 
+  double _getTappablePaddingFocus() {
+    return _targetFocus.tappablePaddingFocus ?? (widget.paddingFocus);
+  }
+
   BorderRadius _betBorderRadiusTarget() {
-    double radius = _targetFocus.shape == ShapeLightFocus.Circle
-        ? _targetPosition?.size.width ?? borderRadiusDefault
-        : _targetFocus.radius ?? borderRadiusDefault;
-    return BorderRadius.circular(radius);
+    if (_tappablePosition != null) {
+      final isRect = _targetFocus.tappableShape == ShapeLightFocus.RRect;
+      final radius = isRect
+          ? _targetFocus.tappableRadius ?? borderRadiusDefault
+          : max(_tappablePosition?.size.width ?? borderRadiusDefault,
+              _tappablePosition?.size.height ?? borderRadiusDefault);
+      return BorderRadius.circular(radius);
+    } else {
+      final isRect = _targetFocus.shape == ShapeLightFocus.RRect;
+      double radius = isRect
+          ? _targetFocus.radius ?? borderRadiusDefault
+          : _targetPosition?.size.width ?? borderRadiusDefault;
+      return BorderRadius.circular(radius);
+    }
   }
 }
 
 class AnimatedStaticFocusLightState extends AnimatedFocusLightState {
-  double get left => (_targetPosition?.offset.dx ?? 0) - _getPaddingFocus() * 2;
+  bool get isTappableTarget => _tappablePosition != null;
 
-  double get top => (_targetPosition?.offset.dy ?? 0) - _getPaddingFocus() * 2;
+  bool get isRect {
+    return isTappableTarget
+        ? _targetFocus.tappableShape == ShapeLightFocus.RRect
+        : _targetFocus.shape == ShapeLightFocus.RRect;
+  }
+
+  double get left {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.offset.dx - _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        return _targetPosition!.offset.dx - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(
+          _tappablePosition!.size.width,
+          _tappablePosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _tappablePosition!.center.dx -
+            (maxS / 2) -
+            _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _targetPosition!.center.dx - (maxS / 2) - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    }
+  }
+
+  double get top {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.offset.dy - _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        return _targetPosition!.offset.dy - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(
+          _tappablePosition!.size.width,
+          _tappablePosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _tappablePosition!.center.dy -
+            (maxS / 2) -
+            _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _targetPosition!.center.dy - (maxS / 2) - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    }
+  }
 
   double get width {
-    return (_targetPosition?.size.width ?? 0) + _getPaddingFocus() * 4;
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.size.width + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        return _targetPosition!.size.width + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(_tappablePosition?.size.width ?? 0,
+            _tappablePosition?.size.height ?? 0);
+        maxS = maxS * 1.2;
+        return maxS + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return maxS + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    }
   }
 
   double get height {
-    return (_targetPosition?.size.height ?? 0) + _getPaddingFocus() * 4;
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.size.height + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        return _targetPosition!.size.height + _getPaddingFocus() * 2;
+      } else {
+        return 0.0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(_tappablePosition?.size.width ?? 0,
+            _tappablePosition?.size.height ?? 0);
+        maxS = maxS * 1.2;
+        return maxS + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return maxS + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    }
   }
 
   @override
@@ -247,6 +437,7 @@ class AnimatedStaticFocusLightState extends AnimatedFocusLightState {
         animation: _controller,
         builder: (_, child) {
           _progressAnimated = _curvedAnimation.value;
+          _staticProgressAnimated = _progressAnimated;
           return Stack(
             children: <Widget>[
               SizedBox(
@@ -254,6 +445,13 @@ class AnimatedStaticFocusLightState extends AnimatedFocusLightState {
                 height: double.maxFinite,
                 child: CustomPaint(
                   painter: _getPainter(_targetFocus),
+                ),
+              ),
+              SizedBox(
+                width: double.maxFinite,
+                height: double.maxFinite,
+                child: CustomPaint(
+                  painter: _getTappablePainter(_targetFocus),
                 ),
               ),
               Positioned(
@@ -324,13 +522,133 @@ class AnimatedPulseFocusLightState extends AnimatedFocusLightState {
   bool _finishFocus = false;
   bool _initReverse = false;
 
-  get left => (_targetPosition?.offset.dx ?? 0) - _getPaddingFocus() * 2;
+  bool get isTappableTarget => _tappablePosition != null;
 
-  get top => (_targetPosition?.offset.dy ?? 0) - _getPaddingFocus() * 2;
+  bool get isRect {
+    return isTappableTarget
+        ? _targetFocus.tappableShape == ShapeLightFocus.RRect
+        : _targetFocus.shape == ShapeLightFocus.RRect;
+  }
 
-  get width => (_targetPosition?.size.width ?? 0) + _getPaddingFocus() * 4;
+  double get left {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.offset.dx - _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        return _targetPosition!.offset.dx - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(
+          _tappablePosition!.size.width,
+          _tappablePosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _tappablePosition!.center.dx -
+            (maxS / 2) -
+            _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _targetPosition!.center.dx - (maxS / 2) - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    }
+  }
 
-  get height => (_targetPosition?.size.height ?? 0) + _getPaddingFocus() * 4;
+  double get top {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.offset.dy - _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        return _targetPosition!.offset.dy - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(
+          _tappablePosition!.size.width,
+          _tappablePosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _tappablePosition!.center.dy -
+            (maxS / 2) -
+            _getTappablePaddingFocus();
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return _targetPosition!.center.dy - (maxS / 2) - _getPaddingFocus();
+      } else {
+        return 0;
+      }
+    }
+  }
+
+  double get width {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.size.width + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        return _targetPosition!.size.width + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(_tappablePosition?.size.width ?? 0,
+            _tappablePosition?.size.height ?? 0);
+        maxS = maxS * 1.2;
+        return maxS + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return maxS + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    }
+  }
+
+  double get height {
+    if (isRect) {
+      if (_tappablePosition != null) {
+        return _tappablePosition!.size.height + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        return _targetPosition!.size.height + _getPaddingFocus() * 2;
+      } else {
+        return 0.0;
+      }
+    } else {
+      if (_tappablePosition != null) {
+        var maxS = max(_tappablePosition?.size.width ?? 0,
+            _tappablePosition?.size.height ?? 0);
+        maxS = maxS * 1.2;
+        return maxS + _getTappablePaddingFocus() * 2;
+      } else if (_targetPosition != null) {
+        var maxS = max(
+          _targetPosition!.size.width,
+          _targetPosition!.size.height,
+        );
+        maxS = maxS * 1.2;
+        return maxS + _getPaddingFocus() * 2;
+      } else {
+        return 0;
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -357,6 +675,7 @@ class AnimatedPulseFocusLightState extends AnimatedFocusLightState {
         animation: _controller,
         builder: (_, child) {
           _progressAnimated = _curvedAnimation.value;
+          _staticProgressAnimated = _progressAnimated;
           return AnimatedBuilder(
             animation: _controllerPulse,
             builder: (_, child) {
@@ -372,6 +691,13 @@ class AnimatedPulseFocusLightState extends AnimatedFocusLightState {
                       painter: _getPainter(_targetFocus),
                     ),
                   ),
+                  SizedBox(
+                    width: double.maxFinite,
+                    height: double.maxFinite,
+                    child: CustomPaint(
+                      painter: _getTappablePainter(_targetFocus),
+                    ),
+                  ),
                   Positioned(
                     left: left,
                     top: top,
@@ -383,11 +709,7 @@ class AnimatedPulseFocusLightState extends AnimatedFocusLightState {
                           /// Essential for collecting [TapDownDetails]. Do not make [null]
                           : () {},
                       onTapDown: _tapHandlerForPosition,
-                      child: Container(
-                        color: Colors.transparent,
-                        width: width,
-                        height: height,
-                      ),
+                      child: SizedBox(width: width, height: height),
                     ),
                   )
                 ],

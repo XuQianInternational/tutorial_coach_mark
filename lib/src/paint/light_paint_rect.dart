@@ -6,20 +6,28 @@ import 'package:tutorial_coach_mark/src/target/target_position.dart';
 class LightPaintRect extends CustomPainter {
   final double progress;
   final TargetPosition target;
+  final TargetPosition? tappableTarget;
   final Color colorShadow;
   final double opacityShadow;
   final double offset;
   final double radius;
+  final double tappableRadius;
   final BorderSide? borderSide;
+  final BorderSide? tappableBorderSide;
+  final double staticProgress;
 
   LightPaintRect({
     required this.progress,
+    required this.staticProgress,
     required this.target,
+    required this.tappableTarget,
     this.colorShadow = Colors.black,
     this.opacityShadow = 0.8,
     this.offset = 10,
     this.radius = 10,
+    this.tappableRadius = 10,
     this.borderSide,
+    this.tappableBorderSide,
   }) : assert(opacityShadow >= 0 && opacityShadow <= 1);
 
   static Path _drawRectHole(
@@ -151,13 +159,29 @@ class LightPaintRect extends CustomPainter {
         max(target.size.width, target.size.height) +
         target.getBiggerSpaceBorder(size);
 
-    double x = -maxSize / 2 * (1 - progress) + target.offset.dx - offset / 2;
+    final haveTappable = tappableTarget != null &&
+        tappableBorderSide != null &&
+        tappableBorderSide?.style != BorderStyle.none;
 
-    double y = -maxSize / 2 * (1 - progress) + target.offset.dy - offset / 2;
+    double x, y, w, h;
 
-    double w = maxSize * (1 - progress) + target.size.width + offset;
+    if (haveTappable) {
+      x = -maxSize / 2 * (1 - staticProgress) + target.offset.dx - offset;
 
-    double h = maxSize * (1 - progress) + target.size.height + offset;
+      y = -maxSize / 2 * (1 - staticProgress) + target.offset.dy - offset;
+
+      w = maxSize * (1 - staticProgress) + target.size.width + offset * 2;
+
+      h = maxSize * (1 - staticProgress) + target.size.height + offset * 2;
+    } else {
+      x = -maxSize / 2 * (1 - progress) + target.offset.dx - offset;
+
+      y = -maxSize / 2 * (1 - progress) + target.offset.dy - offset;
+
+      w = maxSize * (1 - progress) + target.size.width + offset * 2;
+
+      h = maxSize * (1 - progress) + target.size.height + offset * 2;
+    }
 
     canvas.drawPath(
       radius > 0
