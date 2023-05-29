@@ -88,13 +88,24 @@ class TutorialCoachMark {
     );
   }
 
-  void show({required BuildContext context, bool rootOverlay = false}) {
-    Future.delayed(Duration.zero, () {
+  /// 顯示教學彈窗, 若當前已有彈窗正在顯示, 則會回傳正在顯示的overlay, 不會執行其餘動作
+  Future<OverlayEntry?> show({
+    required BuildContext context,
+    bool rootOverlay = false,
+    OverlayEntry? below,
+    OverlayEntry? above,
+  }) {
+    return Future.delayed(Duration.zero, () {
       if (_overlayEntry == null) {
         _overlayEntry = _buildOverlay(rootOverlay: rootOverlay);
         // ignore: invalid_null_aware_operator
-        Overlay.of(context, rootOverlay: rootOverlay)?.insert(_overlayEntry!);
+        Overlay.of(context, rootOverlay: rootOverlay)?.insert(
+          _overlayEntry!,
+          below: below,
+          above: above,
+        );
       }
+      return _overlayEntry;
     });
   }
 

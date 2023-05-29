@@ -174,7 +174,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "1.2.8+1-water"
+    version: "1.2.8+2-water"
   vector_math:
     dependency: transitive
     description:
